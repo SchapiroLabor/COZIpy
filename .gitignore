@@ -1,0 +1,9 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Egg info (package metadata)
+*.egg-info/
+
+# MacOS files
+.DS_Store

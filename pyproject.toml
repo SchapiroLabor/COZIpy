@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cozipy"
+version = "0.0.1"
+description = "COZI neighbor preference analysis package"
+authors = [
+    {name="Chiara Schiller", email="chiara.schiller@uni-heidelberg.de"}
+]
+requires-python = ">=3.9"
+dependencies = ["numpy", "scipy", "pandas", "scikit-learn"]

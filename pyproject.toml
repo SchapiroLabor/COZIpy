@@ -4,10 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cozipy"
-version = "0.0.1"
+dynamic = ["version"]
 description = "COZI neighbor preference analysis package"
+readme = "README.md"
+license = { file = "LICENSE" }
 authors = [
     {name="Chiara Schiller", email="chiara.schiller@uni-heidelberg.de"}
 ]
+keywords = ["neighborhood", "spatial", "directionality"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License"
+]
+
 requires-python = ">=3.9"
 dependencies = ["numpy", "scipy", "pandas", "scikit-learn"]
+
+[project.urls]
+Homepage = "https://github.com/schapirolabor/cozipy"
+Issues = "https://github.com/schapirolabor/cozipy/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "cozipy.__version__"}

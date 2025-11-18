@@ -4,20 +4,12 @@ import pandas as pd
 from scipy.sparse import coo_matrix
 from cozipy.neighbors import knn_graph, radius_graph, delaunay_graph
 
-
-# -----------------------------------------------------------
-# Internal helper: convert labels (str or int) → integer codes
-# -----------------------------------------------------------
 def _encode_labels(labels):
     labels = pd.Series(labels, dtype="category")
     codes = labels.cat.codes.to_numpy()
     categories = labels.cat.categories.to_list()
     return codes, categories
 
-
-# -----------------------------------------------------------
-# Pair counts + denominators
-# -----------------------------------------------------------
 def _compute_pair_counts_and_denominators(adj, labels_int):
     """
     Returns:
@@ -28,13 +20,11 @@ def _compute_pair_counts_and_denominators(adj, labels_int):
     labels_int = np.asarray(labels_int)
     n_types = labels_int.max() + 1
 
-    # raw counts (A->B)
     counts = np.bincount(
         labels_int[i] * n_types + labels_int[j],
         minlength=n_types * n_types
     ).reshape(n_types, n_types)
 
-    # compute denominators
     neigh_labels = labels_int[j]
     src_labels = labels_int[i]
 
@@ -48,10 +38,6 @@ def _compute_pair_counts_and_denominators(adj, labels_int):
 
     return counts, denom
 
-
-# -----------------------------------------------------------
-# Core NEP function
-# -----------------------------------------------------------
 def nep_analysis(adj, labels, n_permutations=1000, random_state=None, return_df=True):
     """
     NEP analysis with conditional ratios and z-scores.
@@ -60,21 +46,17 @@ def nep_analysis(adj, labels, n_permutations=1000, random_state=None, return_df=
     """
     rng = np.random.default_rng(random_state)
 
-    # unify label handling
     labels_int, label_names = _encode_labels(labels)
     n_types = len(label_names)
 
-    # observed
     obs_counts, obs_denom = _compute_pair_counts_and_denominators(adj, labels_int)
     obs_norm = obs_counts / np.maximum(obs_denom, 1)
 
-    # conditional ratio: P(has B | cell type A)
     cond_ratio = np.zeros((n_types, n_types), float)
     for A in range(n_types):
         total_A = (labels_int == A).sum()
         cond_ratio[A] = obs_denom[A] / max(total_A, 1)
 
-    # permutations
     perm_norm = np.zeros((n_permutations, n_types, n_types), float)
     for k in range(n_permutations):
         perm = rng.permutation(labels_int)
@@ -85,7 +67,6 @@ def nep_analysis(adj, labels, n_permutations=1000, random_state=None, return_df=
     std = perm_norm.std(axis=0) + 1e-6
     z = (obs_norm - expected) / std
 
-    # dataframe output
     if return_df:
         idx = label_names
         z_df = pd.DataFrame(z, index=idx, columns=idx)
@@ -100,10 +81,6 @@ def nep_analysis(adj, labels, n_permutations=1000, random_state=None, return_df=
             "zscore": z,
         }
 
-
-# -----------------------------------------------------------
-# High-level function
-# -----------------------------------------------------------
 def run_cozi(
     coords,
     labels,

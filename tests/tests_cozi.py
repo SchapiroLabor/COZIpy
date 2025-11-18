@@ -3,13 +3,9 @@ import pandas as pd
 import numpy as np
 import pytest
 
-# Import your package functions
 from cozipy.nep_cozi import nep_analysis, run_cozi
 from cozipy.neighbors import knn_graph, radius_graph, delaunay_graph
 
-# -------------------------------
-# Helper function to create dummy CSVs for testing
-# -------------------------------
 def create_dummy_csv(folder, filename, n_cells=50, n_types=3):
     os.makedirs(folder, exist_ok=True)
     df = pd.DataFrame({
@@ -21,9 +17,6 @@ def create_dummy_csv(folder, filename, n_cells=50, n_types=3):
     df.to_csv(filepath, index=False)
     return filepath
 
-# -------------------------------
-# Test NEP pipeline with run_cozi
-# -------------------------------
 def test_run_cozi_pipeline(tmp_path):
     # Create three dummy CSVs
     files = [
@@ -32,7 +25,6 @@ def test_run_cozi_pipeline(tmp_path):
         create_dummy_csv(tmp_path, "img3.csv")
     ]
 
-    # Load CSVs into a single DataFrame with img_id
     df_list = []
     for f in files:
         img_id = os.path.splitext(os.path.basename(f))[0]
@@ -44,7 +36,6 @@ def test_run_cozi_pipeline(tmp_path):
     assert "img_id" in combined_df.columns
     assert combined_df.shape[0] > 0
 
-    # Test NEP on each img_id
     for img_id in combined_df["img_id"].unique():
         df_img = combined_df[combined_df["img_id"] == img_id]
         coords = df_img[["x","y"]].values

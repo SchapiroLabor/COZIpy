@@ -20,8 +20,8 @@ conda activate cozi-env
 pip install -e .
 ```
 
-### Option 2. Install directly from GitHub
-Directly install via URL:
+### Option 2. Install from PyPI
+Directly install with pip:
 ```bash
 pip install cozipy
 ```
@@ -40,7 +40,7 @@ Contributions, issues, and feature requests are welcome!
 Feel free to open a pull request or submit an issue on [GitHub Issues](https://github.com/schapirolabor/COZIpy/issues).
 
 Before submitting a PR:
-- Run tests (not yet applicable)
+- Run tests
 - Follow existing code style and documentation patterns
 
 ## Citing

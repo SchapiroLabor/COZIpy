@@ -23,7 +23,7 @@ pip install -e .
 ### Option 2. Install directly from GitHub
 Directly install via URL:
 ```bash
-pip install git+https://github.com/schapirolabor/COZIpy.git
+pip install cozipy
 ```
 
 ## How to run COZIpy

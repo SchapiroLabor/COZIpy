@@ -1,7 +1,7 @@
 # COZIpy - Neighbor preference analysis with a conditional z-score
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-COZI is a python package for neighbor preference (NEP) analysis of cell type labelled spatial data. As described in [Schiller *et al.* bioRxiv 2025](https://doi.org/10.1101/2025.03.31.646289), COZI is one optimized flavor of neighbor preference analysis and infers directinoal neighbor preferences based on label permutations.
+COZI is a python package for neighbor preference (NEP) analysis of cell type labelled spatial data. As described in [Schiller *et al.* bioRxiv 2025](https://doi.org/10.1101/2025.03.31.646289), COZI is one optimized flavor of neighbor preference analysis and infers directional neighbor preferences based on label permutations.
 
 ## Installation
 
@@ -33,7 +33,7 @@ COZI requires x and y-coordinates and cell type label information as input. The 
 
 ### Tutorial
 
-Check the [Tutorial](tutorial/script/cozipy_tutorial.ipynb) for a code example.
+Check the [Tutorial](https://github.com/SchapiroLabor/COZIpy/blob/main/tutorial/cozipy_tutorial.ipynb) for a code example.
 
 ## Contributing
 Contributions, issues, and feature requests are welcome!  

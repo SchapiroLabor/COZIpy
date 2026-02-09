@@ -65,7 +65,6 @@ def nep_analysis(adj,
         all other cell types are shuffled.
     """
     rng = np.random.default_rng(random_state)
-    print("hello")
     labels_int, label_names = _encode_labels(labels)
     n_types = len(label_names)  # SAFER calculation of n_types
 

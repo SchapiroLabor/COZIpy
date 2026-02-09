@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Allow fixed cell types in permutation
+- Workflow automation
 
 ### Fixed
 - Overflow issue

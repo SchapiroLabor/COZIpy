@@ -2,24 +2,20 @@ import numpy as np
 from scipy.spatial import Delaunay, cKDTree
 from scipy.sparse import coo_matrix
 
-
 def knn_graph(coords, n_neighbors=6):
     """
-    Lightweight KNN graph using full distance matrix (NumPy).
-    No sklearn dependency. Directional.
+    Memory-efficient KNN graph using cKDTree.
+    Returns COO adjacency matrix.
     """
-    diff = coords[:, None, :] - coords[None, :, :]
-    dist = np.sum(diff ** 2, axis=2)
-
-    idx = np.argsort(dist, axis=1)
-    neighbors = idx[:, 1:n_neighbors + 1]
+    tree = cKDTree(coords)
+    distances, indices = tree.query(coords, k=n_neighbors+1)  
 
     rows = np.repeat(np.arange(coords.shape[0]), n_neighbors)
-    cols = neighbors.flatten()
+    cols = indices[:, 1:].flatten()   
     data = np.ones(len(rows), dtype=int)
 
-    return coo_matrix((data, (rows, cols)),
-                      shape=(coords.shape[0], coords.shape[0]))
+    return coo_matrix((data, (rows, cols)), shape=(coords.shape[0], coords.shape[0]))
+
 
 
 def radius_graph(coords, radius):

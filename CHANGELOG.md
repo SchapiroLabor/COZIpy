@@ -27,3 +27,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Overflow issue
+
+## [0.1.2] - 2026-03-09
+
+### Added
+- Zenodo doi

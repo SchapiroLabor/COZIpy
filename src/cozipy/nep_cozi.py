@@ -75,15 +75,7 @@ def nep_analysis(adj,
     # Ensure n_types > 0 before proceeding
     if n_types == 0:
         if return_df:
-            # Return empty dataframes and counts if there are no cell types
-            idx = []
-            return {
-                "cond_ratio": pd.DataFrame([], index=idx, columns=idx),
-                "zscore": pd.DataFrame([], index=idx, columns=idx),
-                "index_ct_counts": pd.DataFrame([], index=idx, columns=idx),
-                "neighbor_ct_counts": pd.DataFrame([], index=idx, columns=idx),
-                "interaction_count": 0,
-            }
+            return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
         else:
             return {
                 "cond_ratio": np.array([]).reshape(0, 0),
@@ -142,12 +134,16 @@ def nep_analysis(adj,
             print(f"Cell type(s) {', '.join(map(str, removed_types))} were removed because they have fewer than {min_cell_count} cells.")
         if not keep_mask.any():
             # All filtered out, return empty
-            n_types = 0
-            label_names = []
-            cond_ratio = np.zeros((0, 0), float)
-            z = np.zeros((0, 0), float)
-            index_ct_counts_matrix = np.zeros((0, 0), int)
-            neighbor_ct_counts_matrix = np.zeros((0, 0), int)
+            if return_df:
+                return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
+            else:
+                return {
+                    "cond_ratio": np.zeros((0, 0), float),
+                    "zscore": np.zeros((0, 0), float),
+                    "index_ct_counts": np.zeros((0, 0), int),
+                    "neighbor_ct_counts": np.zeros((0, 0), int),
+                    "interaction_count": 0,
+                }
         else:
             label_names = [name for name, keep in zip(label_names, keep_mask) if keep]
             cond_ratio = cond_ratio[keep_mask][:, keep_mask]
@@ -159,13 +155,18 @@ def nep_analysis(adj,
     if return_df:
         idx = label_names
         z_df = pd.DataFrame(z, index=idx, columns=idx)
-        cond_df = pd.DataFrame(cond_ratio, index=idx, columns=idx)
-        return {
-            "cond_ratio": cond_df,
-            "zscore": z_df,
-            "index_ct_counts": pd.DataFrame(index_ct_counts_matrix, index=idx, columns=idx),
-            "neighbor_ct_counts": pd.DataFrame(neighbor_ct_counts_matrix, index=idx, columns=idx),
-        }
+        z = z_df.loc[idx, idx].to_numpy()
+
+        df = pd.DataFrame({
+            "index_ct": np.repeat(idx, len(idx)),
+            "neighbor_ct": np.tile(idx, len(idx)),
+            "index_ct_counts": index_ct_counts_matrix.ravel(),
+            "neighbor_ct_counts": neighbor_ct_counts_matrix.ravel(),
+            "zscore": z.ravel(),
+            "cond_ratio": cond_ratio.ravel(),
+            
+})
+        return df
     else:
         return {
             "cond_ratio": cond_ratio,

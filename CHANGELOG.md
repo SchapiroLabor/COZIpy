@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.1.3] - 2026-05-06
+
+### Added
+- Option to output dataframe
+- Index and neighbor ct counts in output
+- Option to normalize z-score
+- Filter on ct counts
+
+---
 ## [0.1.2] - 2026-03-09
 
 ### Added

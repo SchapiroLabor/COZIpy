@@ -12,13 +12,14 @@ def _encode_labels(labels):
 
 
 def _compute_pair_counts_and_denominators(adj, labels_int, n_types):
-    """
-    Returns:
-        counts[A, B] = total edges from A to B
-        denom[A, B]  = number of cells of type A having >=1 neighbor of type B
+    """Compute edge counts and denominators for NEP analysis.
     
-    The indices fed to np.bincount are calculated using 64-bit integers 
-    to prevent overflow on large numbers of cell types (n_types).
+    Returns
+    -------
+    counts : ndarray
+        [A, B] = total edges from type A to type B.
+    denom : ndarray
+        [A, B] = number of cells of type A with >=1 neighbor of type B.
     """
     i, j = adj.row, adj.col
     labels_int = np.asarray(labels_int)
@@ -26,7 +27,6 @@ def _compute_pair_counts_and_denominators(adj, labels_int, n_types):
     if n_types == 0 or labels_int.size == 0:
         return np.zeros((0, 0), dtype=int), np.zeros((0, 0), dtype=int)
 
-    # Use 64-bit integers for the calculation that previously overflowed a 32-bit integer.
     labels_int_64 = labels_int.astype(np.int64)
     n_types_64 = np.int64(n_types)
 
@@ -36,14 +36,12 @@ def _compute_pair_counts_and_denominators(adj, labels_int, n_types):
     ).reshape(n_types, n_types)
 
     neigh_labels = labels_int[j]
-
     cell_has_neighbor_type = np.zeros((len(labels_int), n_types), dtype=bool)
     cell_has_neighbor_type[i, neigh_labels] = True
 
     denom = np.zeros((n_types, n_types), dtype=int)
     for A in range(n_types):
-        maskA = (labels_int == A)
-        denom[A] = cell_has_neighbor_type[maskA].sum(axis=0)
+        denom[A] = cell_has_neighbor_type[labels_int == A].sum(axis=0)
 
     return counts, denom
 
@@ -54,25 +52,40 @@ def nep_analysis(adj,
                  random_state=None,
                  return_df=True,
                  fixed_type=None,
-                 min_cell_count=0):
-    """
-    NEP analysis with conditional ratios and z-scores.
-
+                 min_cell_count=0,
+                 normalize_zscore=False):
+    """Perform NEP (neighbor preference) analysis.
+    
     Parameters
     ----------
-    STILL UNDER DEVELOPMENT IF MAKES SENSE
-    fixed_type : str or int or None
-        If provided, this cell type will remain fixed in permutations while
-        all other cell types are shuffled.
+    adj : scipy.sparse COO matrix
+        Adjacency matrix of neighborhood graph.
+    labels : array-like
+        Cell type labels.
+    n_permutations : int, default 1000
+        Number of permutations for statistical testing.
+    random_state : int or None, default None
+        Random seed for reproducibility.
+    return_df : bool, default True
+        If True, return DataFrame; if False, return dict.
+    fixed_type : str or int or None, default None
+        Cell type to keep fixed during permutations.
     min_cell_count : int, default 0
-        Minimum number of cells required for a cell type to be included in the output.
-        Cell types with fewer cells are filtered out from the results after analysis.
+        Filter out types with fewer cells.
+    normalize_zscore : bool, default False
+        Normalize z-scores by sqrt(total cell count).
+    
+    Returns
+    -------
+    DataFrame or dict
+        Results with columns/keys: index_ct, neighbor_ct, index_ct_counts,
+        neighbor_ct_counts, zscore, cond_ratio.
     """
     rng = np.random.default_rng(random_state)
     labels_int, label_names = _encode_labels(labels)
-    n_types = len(label_names)  # SAFER calculation of n_types
+    n_types = len(label_names)
+    total_cell_count = len(labels_int)
 
-    # Ensure n_types > 0 before proceeding
     if n_types == 0:
         if return_df:
             return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
@@ -85,9 +98,7 @@ def nep_analysis(adj,
                 "interaction_count": 0,
             }
 
-    # Pass the safely calculated n_types
-    obs_counts, obs_denom = _compute_pair_counts_and_denominators(
-        adj, labels_int, n_types)
+    obs_counts, obs_denom = _compute_pair_counts_and_denominators(adj, labels_int, n_types)
     obs_norm = obs_counts / np.maximum(obs_denom, 1)
 
     cond_ratio = np.zeros((n_types, n_types), float)
@@ -95,13 +106,11 @@ def nep_analysis(adj,
         total_A = (labels_int == A).sum()
         cond_ratio[A] = obs_denom[A] / max(total_A, 1)
 
-    # Create matrices for index and neighbor counts
-    index_ct_counts_matrix = obs_denom  # [A, B] = number of cells of type A with >=1 neighbor of type B
-    neighbor_ct_counts_matrix = obs_counts  # [A, B] = total edges from A to B
+    index_ct_counts_matrix = obs_denom
+    neighbor_ct_counts_matrix = obs_counts
 
     perm_norm = np.zeros((n_permutations, n_types, n_types), float)
 
-    # convert fixed_type name -> integer index if needed
     if fixed_type is not None and isinstance(fixed_type, str):
         fixed_type = label_names.index(fixed_type)
 
@@ -109,15 +118,10 @@ def nep_analysis(adj,
         if fixed_type is None:
             perm = rng.permutation(labels_int)
         else:
-            # Mask cells to remain unchanged vs permuted
             fixed_mask = labels_int == fixed_type
-            other_mask = ~fixed_mask
-
-            # Copy original labels then permute only others
             perm = labels_int.copy()
-            perm[other_mask] = rng.permutation(labels_int[other_mask])
+            perm[~fixed_mask] = rng.permutation(labels_int[~fixed_mask])
 
-        # Pass the safely calculated n_types
         c, d = _compute_pair_counts_and_denominators(adj, perm, n_types)
         perm_norm[k] = c / np.maximum(d, 1)
 
@@ -125,7 +129,9 @@ def nep_analysis(adj,
     std = perm_norm.std(axis=0) + 1e-6
     z = (obs_norm - expected) / std
 
-    # Filter cell types with low counts
+    if normalize_zscore:
+        z = z / np.sqrt(total_cell_count)
+
     if min_cell_count > 0:
         total_counts = np.array([(labels_int == A).sum() for A in range(n_types)])
         keep_mask = total_counts >= min_cell_count
@@ -133,7 +139,6 @@ def nep_analysis(adj,
             removed_types = [name for name, keep in zip(label_names, keep_mask) if not keep]
             print(f"Cell type(s) {', '.join(map(str, removed_types))} were removed because they have fewer than {min_cell_count} cells.")
         if not keep_mask.any():
-            # All filtered out, return empty
             if return_df:
                 return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
             else:
@@ -154,9 +159,6 @@ def nep_analysis(adj,
 
     if return_df:
         idx = label_names
-        z_df = pd.DataFrame(z, index=idx, columns=idx)
-        z = z_df.loc[idx, idx].to_numpy()
-
         df = pd.DataFrame({
             "index_ct": np.repeat(idx, len(idx)),
             "neighbor_ct": np.tile(idx, len(idx)),
@@ -164,8 +166,7 @@ def nep_analysis(adj,
             "neighbor_ct_counts": neighbor_ct_counts_matrix.ravel(),
             "zscore": z.ravel(),
             "cond_ratio": cond_ratio.ravel(),
-            
-})
+        })
         return df
     else:
         return {
@@ -185,13 +186,35 @@ def run_cozi(
     n_permutations=100,
     random_state=None,
     fixed_type=None,
-    min_cell_count=0
+    return_df=True,
+    min_cell_count=0,
+    normalize_zscore=False
 ):
+    """Run NEP analysis with specified neighborhood definition.
+    
+    Parameters
+    ----------
+    coords : ndarray
+        (n_cells, 2) array of cell coordinates.
+    labels : array-like
+        Cell type labels.
+    nbh_def : str, default "knn"
+        Neighborhood: 'knn', 'radius', or 'delaunay'.
+    n_neighbors : int, default 6
+        Number of neighbors for knn.
+    radius : float, default 0.2
+        Radius for radius neighborhood.
+    n_permutations : int, default 100
+        Number of permutations.
+    random_state : int or None, default None
+        Random seed.
+    fixed_type : str or int or None, default None
+        Cell type to keep fixed.
+    min_cell_count : int, default 0
+        Filter out cell types with fewer cells.
+    normalize_zscore : bool, default False
+        Normalize z-scores by sqrt(total count).
     """
-    Runs NEP analysis with specified neighborhood definition.
-    Accepts string labels.
-    """
-    # build adjacency
     if nbh_def == "knn":
         adj = knn_graph(coords, n_neighbors=n_neighbors)
     elif nbh_def == "radius":
@@ -201,5 +224,6 @@ def run_cozi(
     else:
         raise ValueError(f"Unknown neighborhood definition: {nbh_def}")
 
-    # run NEP
-    return nep_analysis(adj, labels, n_permutations=n_permutations, random_state=random_state, fixed_type=fixed_type, min_cell_count=min_cell_count)
+    return nep_analysis(adj, labels, n_permutations=n_permutations, random_state=random_state,
+                        fixed_type=fixed_type, min_cell_count=min_cell_count, return_df=return_df,
+                        normalize_zscore=normalize_zscore)

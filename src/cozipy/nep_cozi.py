@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix
 from cozipy.neighbors import knn_graph, radius_graph, delaunay_graph
+import warnings
 
 def _encode_labels(labels):
     labels = pd.Series(labels, dtype="category")
@@ -35,7 +36,6 @@ def _compute_pair_counts_and_denominators(adj, labels_int, n_types):
     ).reshape(n_types, n_types)
 
     neigh_labels = labels_int[j]
-    src_labels = labels_int[i]
 
     cell_has_neighbor_type = np.zeros((len(labels_int), n_types), dtype=bool)
     cell_has_neighbor_type[i, neigh_labels] = True
@@ -53,7 +53,8 @@ def nep_analysis(adj,
                  n_permutations=1000,
                  random_state=None,
                  return_df=True,
-                 fixed_type=None):
+                 fixed_type=None,
+                 min_cell_count=0):
     """
     NEP analysis with conditional ratios and z-scores.
 
@@ -63,6 +64,9 @@ def nep_analysis(adj,
     fixed_type : str or int or None
         If provided, this cell type will remain fixed in permutations while
         all other cell types are shuffled.
+    min_cell_count : int, default 0
+        Minimum number of cells required for a cell type to be included in the output.
+        Cell types with fewer cells are filtered out from the results after analysis.
     """
     rng = np.random.default_rng(random_state)
     labels_int, label_names = _encode_labels(labels)
@@ -71,16 +75,22 @@ def nep_analysis(adj,
     # Ensure n_types > 0 before proceeding
     if n_types == 0:
         if return_df:
-            # Return empty dataframes if there are no cell types
+            # Return empty dataframes and counts if there are no cell types
             idx = []
             return {
                 "cond_ratio": pd.DataFrame([], index=idx, columns=idx),
                 "zscore": pd.DataFrame([], index=idx, columns=idx),
+                "index_ct_counts": pd.DataFrame([], index=idx, columns=idx),
+                "neighbor_ct_counts": pd.DataFrame([], index=idx, columns=idx),
+                "interaction_count": 0,
             }
         else:
             return {
                 "cond_ratio": np.array([]).reshape(0, 0),
                 "zscore": np.array([]).reshape(0, 0),
+                "index_ct_counts": np.array([]).reshape(0, 0),
+                "neighbor_ct_counts": np.array([]).reshape(0, 0),
+                "interaction_count": 0,
             }
 
     # Pass the safely calculated n_types
@@ -92,6 +102,10 @@ def nep_analysis(adj,
     for A in range(n_types):
         total_A = (labels_int == A).sum()
         cond_ratio[A] = obs_denom[A] / max(total_A, 1)
+
+    # Create matrices for index and neighbor counts
+    index_ct_counts_matrix = obs_denom  # [A, B] = number of cells of type A with >=1 neighbor of type B
+    neighbor_ct_counts_matrix = obs_counts  # [A, B] = total edges from A to B
 
     perm_norm = np.zeros((n_permutations, n_types, n_types), float)
 
@@ -119,6 +133,29 @@ def nep_analysis(adj,
     std = perm_norm.std(axis=0) + 1e-6
     z = (obs_norm - expected) / std
 
+    # Filter cell types with low counts
+    if min_cell_count > 0:
+        total_counts = np.array([(labels_int == A).sum() for A in range(n_types)])
+        keep_mask = total_counts >= min_cell_count
+        if not keep_mask.all():
+            removed_types = [name for name, keep in zip(label_names, keep_mask) if not keep]
+            print(f"Cell type(s) {', '.join(map(str, removed_types))} were removed because they have fewer than {min_cell_count} cells.")
+        if not keep_mask.any():
+            # All filtered out, return empty
+            n_types = 0
+            label_names = []
+            cond_ratio = np.zeros((0, 0), float)
+            z = np.zeros((0, 0), float)
+            index_ct_counts_matrix = np.zeros((0, 0), int)
+            neighbor_ct_counts_matrix = np.zeros((0, 0), int)
+        else:
+            label_names = [name for name, keep in zip(label_names, keep_mask) if keep]
+            cond_ratio = cond_ratio[keep_mask][:, keep_mask]
+            z = z[keep_mask][:, keep_mask]
+            index_ct_counts_matrix = index_ct_counts_matrix[keep_mask][:, keep_mask]
+            neighbor_ct_counts_matrix = neighbor_ct_counts_matrix[keep_mask][:, keep_mask]
+            n_types = len(label_names)
+
     if return_df:
         idx = label_names
         z_df = pd.DataFrame(z, index=idx, columns=idx)
@@ -126,11 +163,15 @@ def nep_analysis(adj,
         return {
             "cond_ratio": cond_df,
             "zscore": z_df,
+            "index_ct_counts": pd.DataFrame(index_ct_counts_matrix, index=idx, columns=idx),
+            "neighbor_ct_counts": pd.DataFrame(neighbor_ct_counts_matrix, index=idx, columns=idx),
         }
     else:
         return {
             "cond_ratio": cond_ratio,
             "zscore": z,
+            "index_ct_counts": index_ct_counts_matrix,
+            "neighbor_ct_counts": neighbor_ct_counts_matrix,
         }
 
 
@@ -142,7 +183,8 @@ def run_cozi(
     radius=0.2,
     n_permutations=100,
     random_state=None,
-    fixed_type=None
+    fixed_type=None,
+    min_cell_count=0
 ):
     """
     Runs NEP analysis with specified neighborhood definition.
@@ -159,4 +201,4 @@ def run_cozi(
         raise ValueError(f"Unknown neighborhood definition: {nbh_def}")
 
     # run NEP
-    return nep_analysis(adj, labels, n_permutations=n_permutations, random_state=random_state, fixed_type=fixed_type)
+    return nep_analysis(adj, labels, n_permutations=n_permutations, random_state=random_state, fixed_type=fixed_type, min_cell_count=min_cell_count)

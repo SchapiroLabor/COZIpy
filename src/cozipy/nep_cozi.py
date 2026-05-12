@@ -78,24 +78,44 @@ def nep_analysis(adj,
     Returns
     -------
     DataFrame or dict
-        Results with columns/keys: index_ct, neighbor_ct, index_ct_counts,
-        neighbor_ct_counts, zscore, cond_ratio.
+        DataFrame columns: index_cell_type, neighbor_cell_type, n_index_cells,
+        n_neighbor_cells, n_index_cells_with_neighbor, n_index_neighbor_edges,
+        zscore, cond_ratio.
+        Dict keys (return_df=False): index_cell_type, neighbor_cell_type,
+        n_index_cells, n_neighbor_cells, n_index_cells_with_neighbor,
+        n_index_neighbor_edges, zscore, cond_ratio.
+        All dict values are 1D arrays aligned row-wise to the DataFrame layout.
     """
     rng = np.random.default_rng(random_state)
     labels_int, label_names = _encode_labels(labels)
     n_types = len(label_names)
     total_cell_count = len(labels_int)
+    total_counts = np.array([(labels_int == A).sum() for A in range(n_types)], dtype=int)
 
     if n_types == 0:
         if return_df:
-            return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
+            return pd.DataFrame(
+                columns=[
+                    "index_cell_type",
+                    "neighbor_cell_type",
+                    "n_index_cells",
+                    "n_neighbor_cells",
+                    "n_index_cells_with_neighbor",
+                    "n_index_neighbor_edges",
+                    "zscore",
+                    "cond_ratio",
+                ]
+            )
         else:
             return {
-                "cond_ratio": np.array([]).reshape(0, 0),
-                "zscore": np.array([]).reshape(0, 0),
-                "index_ct_counts": np.array([]).reshape(0, 0),
-                "neighbor_ct_counts": np.array([]).reshape(0, 0),
-                "interaction_count": 0,
+                "index_cell_type": np.array([], dtype=object),
+                "neighbor_cell_type": np.array([], dtype=object),
+                "n_index_cells": np.array([], dtype=int),
+                "n_neighbor_cells": np.array([], dtype=int),
+                "n_index_cells_with_neighbor": np.array([], dtype=int),
+                "n_index_neighbor_edges": np.array([], dtype=int),
+                "zscore": np.array([], dtype=float),
+                "cond_ratio": np.array([], dtype=float),
             }
 
     obs_counts, obs_denom = _compute_pair_counts_and_denominators(adj, labels_int, n_types)
@@ -133,21 +153,34 @@ def nep_analysis(adj,
         z = z / np.sqrt(total_cell_count)
 
     if min_cell_count > 0:
-        total_counts = np.array([(labels_int == A).sum() for A in range(n_types)])
         keep_mask = total_counts >= min_cell_count
         if not keep_mask.all():
             removed_types = [name for name, keep in zip(label_names, keep_mask) if not keep]
             print(f"Cell type(s) {', '.join(map(str, removed_types))} were removed because they have fewer than {min_cell_count} cells.")
         if not keep_mask.any():
             if return_df:
-                return pd.DataFrame(columns=['source_ct', 'target_ct', 'cond_ratio', 'zscore'])
+                return pd.DataFrame(
+                    columns=[
+                        "index_cell_type",
+                        "neighbor_cell_type",
+                        "n_index_cells",
+                        "n_neighbor_cells",
+                        "n_index_cells_with_neighbor",
+                        "n_index_neighbor_edges",
+                        "zscore",
+                        "cond_ratio",
+                    ]
+                )
             else:
                 return {
-                    "cond_ratio": np.zeros((0, 0), float),
-                    "zscore": np.zeros((0, 0), float),
-                    "index_ct_counts": np.zeros((0, 0), int),
-                    "neighbor_ct_counts": np.zeros((0, 0), int),
-                    "interaction_count": 0,
+                    "index_cell_type": np.array([], dtype=object),
+                    "neighbor_cell_type": np.array([], dtype=object),
+                    "n_index_cells": np.array([], dtype=int),
+                    "n_neighbor_cells": np.array([], dtype=int),
+                    "n_index_cells_with_neighbor": np.array([], dtype=int),
+                    "n_index_neighbor_edges": np.array([], dtype=int),
+                    "zscore": np.array([], dtype=float),
+                    "cond_ratio": np.array([], dtype=float),
                 }
         else:
             label_names = [name for name, keep in zip(label_names, keep_mask) if keep]
@@ -155,25 +188,33 @@ def nep_analysis(adj,
             z = z[keep_mask][:, keep_mask]
             index_ct_counts_matrix = index_ct_counts_matrix[keep_mask][:, keep_mask]
             neighbor_ct_counts_matrix = neighbor_ct_counts_matrix[keep_mask][:, keep_mask]
+            total_counts = total_counts[keep_mask]
             n_types = len(label_names)
 
     if return_df:
         idx = label_names
         df = pd.DataFrame({
-            "index_ct": np.repeat(idx, len(idx)),
-            "neighbor_ct": np.tile(idx, len(idx)),
-            "index_ct_counts": index_ct_counts_matrix.ravel(),
-            "neighbor_ct_counts": neighbor_ct_counts_matrix.ravel(),
+            "index_cell_type": np.repeat(idx, len(idx)),
+            "neighbor_cell_type": np.tile(idx, len(idx)),
+            "n_index_cells": np.repeat(total_counts, len(idx)),
+            "n_neighbor_cells": np.tile(total_counts, len(idx)),
+            "n_index_cells_with_neighbor": index_ct_counts_matrix.ravel(),
+            "n_index_neighbor_edges": neighbor_ct_counts_matrix.ravel(),
             "zscore": z.ravel(),
             "cond_ratio": cond_ratio.ravel(),
         })
         return df
     else:
+        idx = np.array(label_names, dtype=object)
         return {
-            "cond_ratio": cond_ratio,
-            "zscore": z,
-            "index_ct_counts": index_ct_counts_matrix,
-            "neighbor_ct_counts": neighbor_ct_counts_matrix,
+            "index_cell_type": np.repeat(idx, len(idx)),
+            "neighbor_cell_type": np.tile(idx, len(idx)),
+            "n_index_cells": np.repeat(total_counts, len(idx)),
+            "n_neighbor_cells": np.tile(total_counts, len(idx)),
+            "n_index_cells_with_neighbor": index_ct_counts_matrix.ravel(),
+            "n_index_neighbor_edges": neighbor_ct_counts_matrix.ravel(),
+            "zscore": z.ravel(),
+            "cond_ratio": cond_ratio.ravel(),
         }
 
 

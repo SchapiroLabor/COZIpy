@@ -57,10 +57,12 @@ def test_run_cozi_pipeline(tmp_path):
 
             assert isinstance(res, pd.DataFrame)
             expected_columns = {
-                "index_ct",
-                "neighbor_ct",
-                "index_ct_counts",
-                "neighbor_ct_counts",
+                "index_cell_type",
+                "neighbor_cell_type",
+                "n_index_cells",
+                "n_neighbor_cells",
+                "n_index_cells_with_neighbor",
+                "n_index_neighbor_edges",
                 "zscore",
                 "cond_ratio",
             }
@@ -71,8 +73,10 @@ def test_run_cozi_pipeline(tmp_path):
 
             assert np.all(np.isfinite(res["zscore"]))
             assert np.all(np.isfinite(res["cond_ratio"]))
-            assert np.issubdtype(res["index_ct_counts"].dtype, np.integer)
-            assert np.issubdtype(res["neighbor_ct_counts"].dtype, np.integer)
+            assert np.issubdtype(res["n_index_cells"].dtype, np.integer)
+            assert np.issubdtype(res["n_neighbor_cells"].dtype, np.integer)
+            assert np.issubdtype(res["n_index_cells_with_neighbor"].dtype, np.integer)
+            assert np.issubdtype(res["n_index_neighbor_edges"].dtype, np.integer)
 
 
 def _simple_directed_adj():
@@ -90,13 +94,23 @@ def test_nep_analysis_return_dict_shapes_and_keys():
     out = nep_analysis(adj, labels, n_permutations=5, random_state=7, return_df=False)
 
     assert set(out.keys()) == {
-        "cond_ratio",
+        "index_cell_type",
+        "neighbor_cell_type",
+        "n_index_cells",
+        "n_neighbor_cells",
+        "n_index_cells_with_neighbor",
+        "n_index_neighbor_edges",
         "zscore",
-        "index_ct_counts",
-        "neighbor_ct_counts",
+        "cond_ratio",
     }
-    for key in out:
-        assert out[key].shape == (2, 2)
+    assert out["index_cell_type"].shape == (4,)
+    assert out["neighbor_cell_type"].shape == (4,)
+    assert set(out["index_cell_type"]) == {"A", "B"}
+    assert set(out["neighbor_cell_type"]) == {"A", "B"}
+    assert out["n_index_cells"].shape == (4,)
+    assert out["n_neighbor_cells"].shape == (4,)
+    for key in ["cond_ratio", "zscore", "n_index_cells_with_neighbor", "n_index_neighbor_edges"]:
+        assert out[key].shape == (4,)
 
 
 def test_run_cozi_invalid_neighborhood_definition_raises():
@@ -115,8 +129,8 @@ def test_min_cell_count_filters_rare_types_and_emits_message(capsys):
     captured = capsys.readouterr()
 
     assert "were removed" in captured.out
-    assert set(df["index_ct"]) == {"A"}
-    assert set(df["neighbor_ct"]) == {"A"}
+    assert set(df["index_cell_type"]) == {"A"}
+    assert set(df["neighbor_cell_type"]) == {"A"}
     assert df.shape[0] == 1
 
 
@@ -128,10 +142,14 @@ def test_min_cell_count_all_removed_returns_empty_output():
     assert out_df.empty
 
     out_dict = nep_analysis(adj, labels, n_permutations=3, min_cell_count=10, return_df=False)
-    assert out_dict["cond_ratio"].shape == (0, 0)
-    assert out_dict["zscore"].shape == (0, 0)
-    assert out_dict["index_ct_counts"].shape == (0, 0)
-    assert out_dict["neighbor_ct_counts"].shape == (0, 0)
+    assert out_dict["index_cell_type"].shape == (0,)
+    assert out_dict["neighbor_cell_type"].shape == (0,)
+    assert out_dict["n_index_cells"].shape == (0,)
+    assert out_dict["n_neighbor_cells"].shape == (0,)
+    assert out_dict["cond_ratio"].shape == (0,)
+    assert out_dict["zscore"].shape == (0,)
+    assert out_dict["n_index_cells_with_neighbor"].shape == (0,)
+    assert out_dict["n_index_neighbor_edges"].shape == (0,)
 
 
 def test_normalize_zscore_scales_by_sqrt_cell_count():
@@ -157,6 +175,26 @@ def test_normalize_zscore_scales_by_sqrt_cell_count():
 
     factor = np.sqrt(len(labels))
     assert np.allclose(norm["zscore"] * factor, unnorm["zscore"], atol=1e-6)
+
+
+def test_nep_analysis_dict_matches_dataframe_layout():
+    adj = _simple_directed_adj()
+    labels = np.array(["A", "A", "B"])
+
+    out_df = nep_analysis(adj, labels, n_permutations=10, random_state=13, return_df=True)
+    out_dict = nep_analysis(adj, labels, n_permutations=10, random_state=13, return_df=False)
+
+    for col in [
+        "index_cell_type",
+        "neighbor_cell_type",
+        "n_index_cells",
+        "n_neighbor_cells",
+        "n_index_cells_with_neighbor",
+        "n_index_neighbor_edges",
+        "zscore",
+        "cond_ratio",
+    ]:
+        assert np.array_equal(out_df[col].to_numpy(), out_dict[col])
 
 
 def test_fixed_type_accepts_string_and_int_equivalently():

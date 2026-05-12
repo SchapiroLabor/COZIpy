@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.1.4] - 2026-05-12
+
+### Added
+- Total ct count in output
+
+---
 ## [0.1.3] - 2026-05-06
 
 ### Added
